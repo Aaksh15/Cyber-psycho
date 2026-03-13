@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MediSync — Smart Clinic OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#040d14;--surface:#091520;--card:#0d1e2e;--card2:#112233;
+  --border:rgba(0,180,255,0.12);--border2:rgba(0,180,255,0.22);
+  --accent:#00b4ff;--accent-dim:rgba(0,180,255,0.15);
+  --green:#00e5a0;--green-dim:rgba(0,229,160,0.13);
+  --red:#ff4d6a;--red-dim:rgba(255,77,106,0.13);
+  --amber:#ffb020;--amber-dim:rgba(255,176,32,0.13);
+  --purple:#a78bfa;--purple-dim:rgba(167,139,250,0.13);
+  --pink:#f472b6;--pink-dim:rgba(244,114,182,0.13);
+  --text:#e8f4ff;--text2:#7da8c4;--text3:#3d6a85;
+  --r:12px;--shadow:0 0 40px rgba(0,180,255,0.08);
+  --fd:'Syne',sans-serif;--fb:'DM Sans',sans-serif;
+}
+html{font-family:var(--fb);background:var(--bg);color:var(--text);min-height:100vh}
+body{min-height:100vh}#root{min-height:100vh}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+input,select,textarea,button{font-family:var(--fb)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{transform:translateX(110%)}to{transform:translateX(0)}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(0,180,255,.2)}50%{box-shadow:0 0 50px rgba(0,180,255,.6)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes countUp{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+@keyframes ripple{0%{transform:scale(0);opacity:.6}100%{transform:scale(4);opacity:0}}
+
+/* ── PRINT STYLES ── */
+@media print{
+  body{background:#fff!important;color:#000!important}
+  .no-print{display:none!important}
+  .print-only{display:block!important}
+  .rx-sheet{background:#fff!important;color:#000!important;border:none!important;padding:0!important;max-width:100%!important}
+  .rx-sheet *{color:#000!important;background:#fff!important;border-color:#ccc!important}
+}
+.print-only{display:none}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback,useMemo} = React;
+
+// ─── CONSTANTS ─────────────────────────────────────────────
+const USERS = [
+  {id:1,name:'Dr. Anjali Mehta',role:'doctor',email:'doctor@clinic.com',password:'doctor123',specialty:'General Physician',reg:'MH-12345',avatar:'AM',clinic:'MediSync Clinic, 4th Floor, Andheri East, Mumbai - 400069',phone:'+91 22-4567-8900'},
+  {id:2,name:'Priya Sharma',role:'receptionist',email:'reception@clinic.com',password:'recep123',avatar:'PS'},
+];
+const SLOT_TIMES=['09:00','09:30','10:00','10:30','11:00','11:30','12:00','14:00','14:30','15:00','15:30','16:00','16:30','17:00'];
+const MEDICINES_DB=['Paracetamol 500mg','Paracetamol 650mg','Amoxicillin 250mg','Amoxicillin 500mg','Azithromycin 250mg','Azithromycin 500mg','Cetirizine 10mg','Dolo 650mg','Ibuprofen 400mg','Ibuprofen 600mg','Pantoprazole 40mg','Omeprazole 20mg','Metformin 500mg','Metformin 1000mg','Amlodipine 5mg','Atorvastatin 10mg','Atorvastatin 20mg','Losartan 50mg','Montelukast 10mg','Salbutamol Inhaler','Vitamin D3 60K','Vitamin C 500mg','Zinc 50mg','Calcium+D3','B-Complex','ORS Sachets','Betadine Ointment','Clotrimazole Cream','Diclofenac Gel','Ranitidine 150mg'];
+const DIAGNOSES=['Viral Upper Respiratory Infection','Bacterial Pharyngitis','Acute Gastroenteritis','Hypertension - Grade 1','Type 2 Diabetes Mellitus','Allergic Rhinitis','Migraine without Aura','Tension Headache','Lower Back Pain','Urinary Tract Infection','Vitamin D Deficiency','Iron Deficiency Anemia','Anxiety Disorder','Hyperlipidemia','Common Cold & Flu'];
+const FREQ=['Once daily (OD)','Twice daily (BD)','Thrice daily (TDS)','Four times daily (QID)','At bedtime (HS)','SOS (as needed)','Every 8 hours','Every 12 hours'];
+const DURATION=['3 days','5 days','7 days','10 days','14 days','1 month','2 months','3 months','Ongoing'];
+const INSTRUCTIONS=['Before food','After food','With warm water','With milk','Empty stomach','With food','Morning only','Night only'];
+
+const genId=()=>Math.random().toString(36).substr(2,9);
+const today=()=>new Date().toISOString().split('T')[0];
+const formatDate=d=>new Date(d+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+const formatTime=t=>{if(!t)return'';const[h,m]=t.split(':');const ampm=+h>=12?'PM':'AM';return`${+h>12?+h-12:+h||12}:${m} ${ampm}`};
+const statusColors={confirmed:'green',pending:'amber',cancelled:'red',completed:'accent',rescheduled:'amber'};
+const statusIcons={confirmed:'✓',pending:'◷',cancelled:'✕',completed:'★',rescheduled:'↺'};
+const rxNum=()=>'RX'+Date.now().toString(36).toUpperCase().slice(-6);
+
+const INITIAL_APPTS=[
+  {id:'a1',patientName:'Rahul Verma',patientPhone:'9876543210',patientAge:34,date:today(),time:'09:30',reason:'Fever & Cold',status:'confirmed',notes:'',vitals:{bp:'120/80',temp:'101.2°F',spo2:'98%',pulse:'88',weight:'72kg'},prescription:null,createdAt:new Date().toISOString()},
+  {id:'a2',patientName:'Meera Iyer',patientPhone:'9123456789',patientAge:28,date:today(),time:'10:00',reason:'Follow-up checkup',status:'pending',notes:'',vitals:{},prescription:null,createdAt:new Date().toISOString()},
+  {id:'a3',patientName:'Arun Das',patientPhone:'9988776655',patientAge:52,date:today(),time:'11:30',reason:'BP Monitoring',status:'completed',notes:'BP stable. Next visit in 1 month.',vitals:{bp:'140/90',temp:'98.6°F',spo2:'97%',pulse:'76',weight:'85kg'},prescription:{id:rxNum(),medicines:[{name:'Amlodipine 5mg',freq:'Once daily (OD)',duration:'1 month',instructions:'After food',qty:30},{name:'Losartan 50mg',freq:'Once daily (OD)',duration:'1 month',instructions:'Morning only',qty:30}],diagnosis:'Hypertension - Grade 1',advice:'Low salt diet. Daily 30 min walk. Avoid stress.',followUp:'After 1 month',createdAt:new Date().toISOString()},createdAt:new Date().toISOString()},
+];
+
+// ─── TOAST ──────────────────────────────────────────────────
+function useToast(){
+  const[toasts,setToasts]=useState([]);
+  const add=(msg,type='info')=>{const id=genId();setToasts(p=>[...p,{id,msg,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3500)};
+  const remove=id=>setToasts(p=>p.filter(t=>t.id!==id));
+  return{toasts,add,remove};
+}
+function Toast({toasts,remove}){
+  const bg={error:'rgba(255,77,106,.95)',success:'rgba(0,229,160,.95)',warning:'rgba(255,176,32,.95)',info:'rgba(0,180,255,.95)'};
+  return<div style={{position:'fixed',bottom:24,right:24,zIndex:9999,display:'flex',flexDirection:'column',gap:10}}>
+    {toasts.map(t=><div key={t.id} onClick={()=>remove(t.id)} style={{animation:'slideIn .3s ease',background:bg[t.type]||bg.info,color:'#000',padding:'12px 18px',borderRadius:10,fontWeight:500,fontSize:14,cursor:'pointer',boxShadow:'0 8px 32px rgba(0,0,0,.4)',maxWidth:320,lineHeight:1.4}}>{t.msg}</div>)}
+  </div>;
+}
+
+// ─── UI PRIMITIVES ───────────────────────────────────────────
+function Btn({children,onClick,variant='primary',size='md',style={},disabled=false,full=false}){
+  const s={primary:{background:'var(--accent)',color:'#000',border:'none'},ghost:{background:'transparent',color:'var(--accent)',border:'1px solid var(--border2)'},danger:{background:'var(--red-dim)',color:'var(--red)',border:'1px solid rgba(255,77,106,.25)'},success:{background:'var(--green-dim)',color:'var(--green)',border:'1px solid rgba(0,229,160,.25)'},dark:{background:'var(--card2)',color:'var(--text)',border:'1px solid var(--border)'},purple:{background:'var(--purple-dim)',color:'var(--purple)',border:'1px solid rgba(167,139,250,.25)'}};
+  const sz={sm:{padding:'6px 14px',fontSize:13},md:{padding:'10px 20px',fontSize:14},lg:{padding:'14px 28px',fontSize:15,fontWeight:600}};
+  return<button disabled={disabled} onClick={onClick} style={{...s[variant],...sz[size],borderRadius:8,cursor:disabled?'not-allowed':'pointer',fontWeight:500,fontFamily:'var(--fb)',transition:'all .15s',opacity:disabled?.5:1,width:full?'100%':'auto',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:6,...style}} onMouseOver={e=>{if(!disabled)e.currentTarget.style.filter='brightness(1.15)'}} onMouseOut={e=>{e.currentTarget.style.filter=''}}>{children}</button>;
+}
+function Badge({status}){
+  const c=statusColors[status]||'accent';
+  const m={green:['var(--green-dim)','var(--green)'],amber:['var(--amber-dim)','var(--amber)'],red:['var(--red-dim)','var(--red)'],accent:['var(--accent-dim)','var(--accent)']};
+  const[bg,fg]=m[c];
+  return<span style={{background:bg,color:fg,padding:'3px 10px',borderRadius:20,fontSize:12,fontWeight:600,letterSpacing:.3,display:'inline-flex',alignItems:'center',gap:4}}>{statusIcons[status]} {status.charAt(0).toUpperCase()+status.slice(1)}</span>;
+}
+function Card({children,style={},glow=false}){
+  return<div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'var(--r)',padding:20,boxShadow:glow?'var(--shadow)':'none',...style}}>{children}</div>;
+}
+function Inp({label,value,onChange,type='text',placeholder,required,options,min,max,list}){
+  const base={width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'10px 14px',color:'var(--text)',fontSize:14,outline:'none',fontFamily:'var(--fb)',transition:'border .15s'};
+  return<div style={{display:'flex',flexDirection:'column',gap:6}}>
+    {label&&<label style={{fontSize:13,color:'var(--text2)',fontWeight:500}}>{label}{required&&<span style={{color:'var(--red)'}}> *</span>}</label>}
+    {options?<select value={value} onChange={e=>onChange(e.target.value)} style={base}><option value="">Select…</option>{options.map(o=><option key={o.value||o} value={o.value||o}>{o.label||o}</option>)}</select>
+    :type==='textarea'?<textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={3} style={{...base,resize:'vertical'}}/>
+    :<><input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} min={min} max={max} list={list} style={base} onFocus={e=>e.target.style.borderColor='var(--accent)'} onBlur={e=>e.target.style.borderColor='var(--border)'}/>{list&&<datalist id={list}/>}</>}
+  </div>;
+}
+function Modal({open,onClose,title,children,width=520}){
+  if(!open)return null;
+  return<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16,backdropFilter:'blur(6px)'}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{background:'var(--card)',border:'1px solid var(--border2)',borderRadius:16,padding:28,width:'100%',maxWidth:width,maxHeight:'92vh',overflowY:'auto',animation:'fadeUp .2s ease'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+        <h2 style={{fontFamily:'var(--fd)',fontSize:20,fontWeight:700}}>{title}</h2>
+        <button onClick={onClose} style={{background:'none',border:'none',color:'var(--text2)',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+      </div>
+      {children}
+    </div>
+  </div>;
+}
+
+// ─── PRESCRIPTION WRITER ────────────────────────────────────
+function PrescriptionWriter({appt,doctor,onSave,onClose}){
+  const[diagnosis,setDiagnosis]=useState(appt.prescription?.diagnosis||'');
+  const[medicines,setMedicines]=useState(appt.prescription?.medicines||[{name:'',freq:'',duration:'',instructions:'',qty:''}]);
+  const[advice,setAdvice]=useState(appt.prescription?.advice||'');
+  const[followUp,setFollowUp]=useState(appt.prescription?.followUp||'');
+  const[medSearch,setMedSearch]=useState('');
+  const[showSearch,setShowSearch]=useState(null);
+
+  const addMed=()=>setMedicines(p=>[...p,{name:'',freq:'',duration:'',instructions:'',qty:''}]);
+  const removeMed=i=>setMedicines(p=>p.filter((_,j)=>j!==i));
+  const setMed=(i,k,v)=>setMedicines(p=>p.map((m,j)=>j===i?{...m,[k]:v}:m));
+
+  const filtered=MEDICINES_DB.filter(m=>m.toLowerCase().includes(medSearch.toLowerCase())).slice(0,8);
+
+  const save=()=>{
+    if(!diagnosis){alert('Please enter diagnosis');return;}
+    if(medicines.some(m=>!m.name)){alert('Fill all medicine names');return;}
+    onSave({id:appt.prescription?.id||rxNum(),medicines,diagnosis,advice,followUp,createdAt:appt.prescription?.createdAt||new Date().toISOString()});
+  };
+
+  return<div style={{display:'flex',flexDirection:'column',gap:16}}>
+    <div>
+      <label style={{fontSize:13,color:'var(--text2)',fontWeight:500,display:'block',marginBottom:6}}>Diagnosis *</label>
+      <div style={{position:'relative'}}>
+        <input value={diagnosis} onChange={e=>setDiagnosis(e.target.value)} list="diag-list" placeholder="Type or select diagnosis…" style={{width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'10px 14px',color:'var(--text)',fontSize:14,outline:'none',fontFamily:'var(--fb)'}} onFocus={e=>e.target.style.borderColor='var(--accent)'} onBlur={e=>e.target.style.borderColor='var(--border)'}/>
+        <datalist id="diag-list">{DIAGNOSES.map(d=><option key={d} value={d}/>)}</datalist>
+      </div>
+    </div>
+
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <label style={{fontSize:13,color:'var(--text2)',fontWeight:500}}>Medicines</label>
+        <Btn size="sm" onClick={addMed} variant="ghost">+ Add Medicine</Btn>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {medicines.map((med,i)=>(
+          <div key={i} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:14,position:'relative'}}>
+            <button onClick={()=>removeMed(i)} style={{position:'absolute',top:8,right:10,background:'none',border:'none',color:'var(--red)',cursor:'pointer',fontSize:16}}>×</button>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+              <div style={{gridColumn:'1/-1',position:'relative'}}>
+                <label style={{fontSize:12,color:'var(--text3)',display:'block',marginBottom:4}}>Medicine Name *</label>
+                <input value={med.name} onChange={e=>{setMed(i,'name',e.target.value);setMedSearch(e.target.value);setShowSearch(i)}} onFocus={()=>setShowSearch(i)} placeholder="Search medicine…" style={{width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:6,padding:'8px 12px',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--fb)'}}/>
+                {showSearch===i&&med.name&&filtered.length>0&&<div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--card)',border:'1px solid var(--border2)',borderRadius:8,zIndex:200,overflow:'hidden',boxShadow:'0 8px 32px rgba(0,0,0,.5)',maxHeight:200,overflowY:'auto'}}>
+                  {filtered.map(m=><div key={m} onMouseDown={()=>{setMed(i,'name',m);setShowSearch(null)}} style={{padding:'8px 12px',cursor:'pointer',fontSize:13}} onMouseOver={e=>e.currentTarget.style.background='var(--card2)'} onMouseOut={e=>e.currentTarget.style.background=''}>{m}</div>)}
+                </div>}
+              </div>
+              <div>
+                <label style={{fontSize:12,color:'var(--text3)',display:'block',marginBottom:4}}>Frequency</label>
+                <select value={med.freq} onChange={e=>setMed(i,'freq',e.target.value)} style={{width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:6,padding:'8px 12px',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--fb)'}}>
+                  <option value="">Select…</option>{FREQ.map(f=><option key={f}>{f}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:12,color:'var(--text3)',display:'block',marginBottom:4}}>Duration</label>
+                <select value={med.duration} onChange={e=>setMed(i,'duration',e.target.value)} style={{width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:6,padding:'8px 12px',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--fb)'}}>
+                  <option value="">Select…</option>{DURATION.map(d=><option key={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:12,color:'var(--text3)',display:'block',marginBottom:4}}>Instructions</label>
+                <select value={med.instructions} onChange={e=>setMed(i,'instructions',e.target.value)} style={{width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:6,padding:'8px 12px',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--fb)'}}>
+                  <option value="">Select…</option>{INSTRUCTIONS.map(ins=><option key={ins}>{ins}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:12,color:'var(--text3)',display:'block',marginBottom:4}}>Qty / Strips</label>
+                <input type="number" value={med.qty} onChange={e=>setMed(i,'qty',e.target.value)} placeholder="e.g. 10" style={{width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:6,padding:'8px 12px',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--fb)'}}/>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+      <div style={{gridColumn:'1/-1'}}><Inp label="General Advice / Instructions" type="textarea" value={advice} onChange={setAdvice} placeholder="Dietary changes, lifestyle advice, warnings…"/></div>
+      <Inp label="Follow-up Visit" value={followUp} onChange={setFollowUp} placeholder="e.g. After 1 week, After 1 month"/>
+    </div>
+
+    <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:4}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={save} variant="success">💊 Save Prescription</Btn>
+    </div>
+  </div>;
+}
+
+// ─── PRINTABLE PRESCRIPTION SHEET ──────────────────────────
+function PrintableRx({appt,doctor,onClose}){
+  const rx=appt.prescription;
+  if(!rx)return null;
+
+  const printSheet=()=>{
+    const w=window.open('','_blank');
+    w.document.write(`<!DOCTYPE html><html><head><title>Prescription - ${appt.patientName}</title>
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'Times New Roman',serif;background:#fff;color:#000;padding:20px}
+      .rx-outer{border:2px solid #1a365d;border-radius:8px;overflow:hidden;max-width:800px;margin:0 auto}
+      .rx-header{background:#1a365d;color:#fff;padding:20px 28px;display:flex;justify-content:space-between;align-items:flex-start}
+      .clinic-name{font-size:24px;font-weight:700;letter-spacing:-0.5px}
+      .clinic-sub{font-size:13px;opacity:.85;margin-top:4px}
+      .doc-info{text-align:right;font-size:13px}
+      .doc-name{font-size:16px;font-weight:700;margin-bottom:2px}
+      .rx-body{padding:24px 28px}
+      .patient-strip{background:#f0f7ff;border:1px solid #bee3f8;border-radius:6px;padding:14px 18px;display:flex;justify-content:space-between;margin-bottom:20px}
+      .pfield{display:flex;flex-direction:column;gap:2px}
+      .pfield span:first-child{font-size:11px;text-transform:uppercase;color:#4a5568;font-weight:600;letter-spacing:.5px}
+      .pfield span:last-child{font-size:15px;font-weight:600;color:#1a202c}
+      .section-title{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:#4a5568;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+      .diag-box{background:#fff8e1;border-left:4px solid #f59e0b;padding:12px 16px;border-radius:4px;margin-bottom:20px;font-size:16px;font-weight:600;color:#1a202c}
+      .rx-symbol{font-size:64px;color:#1a365d;font-weight:700;float:left;line-height:.85;margin-right:16px;margin-top:-4px;font-family:serif}
+      table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:14px}
+      th{background:#1a365d;color:#fff;padding:10px 12px;text-align:left;font-size:12px;font-weight:600;letter-spacing:.3px}
+      td{padding:10px 12px;border-bottom:1px solid #e2e8f0}
+      tr:nth-child(even) td{background:#f7fafc}
+      .advice-box{border:1px solid #e2e8f0;border-radius:6px;padding:14px 18px;background:#f9fafb;margin-bottom:20px;font-size:14px;line-height:1.7}
+      .rx-footer{display:flex;justify-content:space-between;align-items:flex-end;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0}
+      .sig-line{border-top:1.5px solid #1a365d;padding-top:6px;font-size:13px;font-weight:600;color:#1a365d;width:180px;text-align:center}
+      .qr-box{text-align:center;font-size:11px;color:#718096}
+      .qr-placeholder{width:80px;height:80px;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;background:#f9fafb;margin:0 auto 4px;font-size:10px;color:#a0aec0;border-radius:4px}
+      .followup-pill{display:inline-block;background:#e6fffa;border:1px solid #81e6d9;padding:6px 14px;border-radius:20px;font-size:13px;color:#234e52;font-weight:600;margin-top:6px}
+      .watermark{text-align:center;font-size:11px;color:#a0aec0;margin-top:16px;padding-top:10px;border-top:1px dashed #e2e8f0}
+      .rx-id{font-size:11px;color:#a0aec0}
+      @media print{body{padding:0}.rx-outer{border:2px solid #1a365d!important}}
+    </style></head><body>
+    <div class="rx-outer">
+      <div class="rx-header">
+        <div>
+          <div class="clinic-name">🏥 MediSync Clinic</div>
+          <div class="clinic-sub">${doctor.clinic}</div>
+          <div class="clinic-sub" style="margin-top:4px">📞 ${doctor.phone}</div>
+        </div>
+        <div class="doc-info">
+          <div class="doc-name">${doctor.name}</div>
+          <div>${doctor.specialty}</div>
+          <div>Reg. No: ${doctor.reg}</div>
+          <div style="margin-top:4px;font-size:12px">${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</div>
+        </div>
+      </div>
+      <div class="rx-body">
+        <div class="patient-strip">
+          <div class="pfield"><span>Patient Name</span><span>${appt.patientName}</span></div>
+          <div class="pfield"><span>Age / Sex</span><span>${appt.patientAge} Yrs</span></div>
+          <div class="pfield"><span>Phone</span><span>${appt.patientPhone}</span></div>
+          <div class="pfield"><span>Date</span><span>${formatDate(appt.date)}</span></div>
+          <div class="rx-id">Rx ID: ${rx.id}</div>
+        </div>
+
+        <div class="diag-box">
+          <div class="section-title">🔬 Diagnosis</div>
+          ${rx.diagnosis}
+        </div>
+
+        ${appt.vitals&&Object.keys(appt.vitals).length>0?`
+        <div style="margin-bottom:16px">
+          <div class="section-title">📊 Vitals Recorded</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            ${appt.vitals.bp?`<span style="background:#ebf8ff;border:1px solid #bee3f8;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600">BP: ${appt.vitals.bp}</span>`:''}
+            ${appt.vitals.temp?`<span style="background:#fff5f5;border:1px solid #fed7d7;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600">Temp: ${appt.vitals.temp}</span>`:''}
+            ${appt.vitals.spo2?`<span style="background:#f0fff4;border:1px solid #c6f6d5;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600">SpO2: ${appt.vitals.spo2}</span>`:''}
+            ${appt.vitals.pulse?`<span style="background:#fefcbf;border:1px solid #faf089;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600">Pulse: ${appt.vitals.pulse} bpm</span>`:''}
+            ${appt.vitals.weight?`<span style="background:#faf5ff;border:1px solid #e9d8fd;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600">Weight: ${appt.vitals.weight}</span>`:''}
+          </div>
+        </div>`:''}
+
+        <div>
+          <div class="section-title"><span class="rx-symbol">℞</span> Medicines Prescribed</div>
+          <table>
+            <thead><tr><th>#</th><th>Medicine</th><th>Frequency</th><th>Duration</th><th>Instructions</th><th>Qty</th></tr></thead>
+            <tbody>
+              ${rx.medicines.map((m,i)=>`<tr><td>${i+1}</td><td><strong>${m.name}</strong></td><td>${m.freq||'—'}</td><td>${m.duration||'—'}</td><td>${m.instructions||'—'}</td><td>${m.qty||'—'}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        ${rx.advice?`<div><div class="section-title">💡 Advice & Instructions</div><div class="advice-box">${rx.advice}</div></div>`:''}
+
+        ${rx.followUp?`<div><div class="section-title">🗓 Follow-Up</div><span class="followup-pill">📅 Return for review: ${rx.followUp}</span></div>`:''}
+
+        <div class="rx-footer">
+          <div>
+            <div style="font-size:12px;color:#718096;margin-bottom:28px">Doctor's Signature</div>
+            <div class="sig-line">${doctor.name}</div>
+          </div>
+          <div class="qr-box">
+            <div class="qr-placeholder">QR<br/>Scan</div>
+            <div>Verify at medisync.clinic</div>
+            <div>/${rx.id}</div>
+          </div>
+        </div>
+        <div class="watermark">⚠ This prescription is valid for 30 days from date of issue. Keep this receipt for pharmacy & insurance records. — Generated by MediSync Clinic OS</div>
+      </div>
+    </div>
+    <script>window.onload=()=>window.print()<\/script>
+    </body></html>`);
+    w.document.close();
+  };
+
+  return<div>
+    {/* Preview */}
+    <div style={{background:'white',color:'#1a202c',borderRadius:12,padding:24,marginBottom:16,maxHeight:400,overflowY:'auto',border:'2px solid var(--border2)'}}>
+      <div style={{borderBottom:'3px solid #1a365d',paddingBottom:12,marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+        <div>
+          <div style={{fontSize:20,fontWeight:700,color:'#1a365d'}}>🏥 MediSync Clinic</div>
+          <div style={{fontSize:12,color:'#4a5568',marginTop:2}}>{doctor.clinic}</div>
+        </div>
+        <div style={{textAlign:'right',fontSize:12,color:'#4a5568'}}>
+          <div style={{fontWeight:700,color:'#1a202c'}}>{doctor.name}</div>
+          <div>{doctor.specialty}</div>
+          <div style={{fontSize:11}}>Reg: {doctor.reg}</div>
+        </div>
+      </div>
+      <div style={{background:'#f0f7ff',borderRadius:8,padding:12,marginBottom:14,display:'flex',gap:20,flexWrap:'wrap',fontSize:13}}>
+        <span><strong>Patient:</strong> {appt.patientName}</span>
+        <span><strong>Age:</strong> {appt.patientAge} yrs</span>
+        <span><strong>Phone:</strong> {appt.patientPhone}</span>
+        <span><strong>Date:</strong> {formatDate(appt.date)}</span>
+        <span style={{color:'#718096',fontSize:11,marginLeft:'auto'}}>Rx: {rx.id}</span>
+      </div>
+      <div style={{background:'#fffbeb',borderLeft:'3px solid #f59e0b',padding:'10px 14px',borderRadius:4,marginBottom:14,fontWeight:600,color:'#1a202c'}}>Diagnosis: {rx.diagnosis}</div>
+      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:14,fontSize:13}}>
+        <thead><tr style={{background:'#1a365d',color:'white'}}>{['#','Medicine','Freq','Duration','Instructions','Qty'].map(h=><th key={h} style={{padding:'8px 10px',textAlign:'left',fontSize:12}}>{h}</th>)}</tr></thead>
+        <tbody>{rx.medicines.map((m,i)=><tr key={i} style={{borderBottom:'1px solid #e2e8f0'}}><td style={{padding:'8px 10px'}}>{i+1}</td><td style={{padding:'8px 10px',fontWeight:600}}>{m.name}</td><td style={{padding:'8px 10px'}}>{m.freq||'—'}</td><td style={{padding:'8px 10px'}}>{m.duration||'—'}</td><td style={{padding:'8px 10px'}}>{m.instructions||'—'}</td><td style={{padding:'8px 10px'}}>{m.qty||'—'}</td></tr>)}</tbody>
+      </table>
+      {rx.advice&&<div style={{background:'#f9fafb',border:'1px solid #e2e8f0',borderRadius:6,padding:12,fontSize:13,marginBottom:10}}><strong>Advice:</strong> {rx.advice}</div>}
+      {rx.followUp&&<div style={{fontSize:13,color:'#234e52'}}><strong>Follow-up:</strong> {rx.followUp}</div>}
+    </div>
+    <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+      <Btn variant="ghost" onClick={onClose}>Close</Btn>
+      <Btn onClick={printSheet} variant="success">🖨 Print Prescription</Btn>
+    </div>
+  </div>;
+}
+
+// ─── VITALS RECORDER ────────────────────────────────────────
+function VitalsRecorder({appt,onSave,onClose}){
+  const[v,setV]=useState({bp:appt.vitals?.bp||'',temp:appt.vitals?.temp||'',spo2:appt.vitals?.spo2||'',pulse:appt.vitals?.pulse||'',weight:appt.vitals?.weight||'',sugar:appt.vitals?.sugar||''});
+  const set=k=>val=>setV(p=>({...p,[k]:val}));
+  const vitalsConfig=[
+    {key:'bp',icon:'🩺',label:'Blood Pressure',unit:'mmHg',ph:'e.g. 120/80',color:'var(--accent)'},
+    {key:'temp',icon:'🌡',label:'Temperature',unit:'°F',ph:'e.g. 98.6°F',color:'var(--red)'},
+    {key:'spo2',icon:'💧',label:'SpO2',unit:'%',ph:'e.g. 99%',color:'var(--green)'},
+    {key:'pulse',icon:'❤️',label:'Pulse Rate',unit:'bpm',ph:'e.g. 72',color:'var(--pink)'},
+    {key:'weight',icon:'⚖️',label:'Weight',unit:'kg',ph:'e.g. 70kg',color:'var(--amber)'},
+    {key:'sugar',icon:'🩸',label:'Blood Sugar',unit:'mg/dL',ph:'e.g. 110 F / 140 PP',color:'var(--purple)'},
+  ];
+  return<div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
+      {vitalsConfig.map(({key,icon,label,unit,ph,color})=>(
+        <div key={key} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:14}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+            <span style={{fontSize:20}}>{icon}</span>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color}}>{label}</div>
+              <div style={{fontSize:11,color:'var(--text3)'}}>{unit}</div>
+            </div>
+          </div>
+          <input value={v[key]} onChange={e=>set(key)(e.target.value)} placeholder={ph} style={{width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:6,padding:'8px 12px',color:'var(--text)',fontSize:14,outline:'none',fontFamily:'var(--fb)'}} onFocus={e=>e.target.style.borderColor=color} onBlur={e=>e.target.style.borderColor='var(--border)'}/>
+        </div>
+      ))}
+    </div>
+    <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={()=>onSave(v)} variant="success">📊 Save Vitals</Btn>
+    </div>
+  </div>;
+}
+
+// ─── QUEUE MANAGER ───────────────────────────────────────────
+function QueueManager({appointments,onStatus,toast}){
+  const queue=appointments.filter(a=>a.date===today()&&(a.status==='confirmed'||a.status==='pending')).sort((a,b)=>a.time.localeCompare(b.time));
+  const[calling,setCalling]=useState(null);
+  const[waited,setWaited]=useState({});
+
+  useEffect(()=>{
+    const t=setInterval(()=>{
+      setWaited(p=>{
+        const n={...p};
+        queue.forEach(a=>{if(!n[a.id])n[a.id]=0;else n[a.id]+=1;});
+        return n;
+      });
+    },60000);
+    return()=>clearInterval(t);
+  },[queue.length]);
+
+  const callNext=()=>{
+    const next=queue[0];
+    if(next){setCalling(next.id);toast(`🔔 Calling ${next.patientName} — Token #${queue.indexOf(next)+1}`,'info');}
+  };
+
+  return<div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+      <div>
+        <h3 style={{fontFamily:'var(--fd)',fontSize:18,fontWeight:700}}>Live Queue</h3>
+        <p style={{color:'var(--text3)',fontSize:13,marginTop:2}}>{queue.length} patients waiting • {new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</p>
+      </div>
+      <Btn onClick={callNext} disabled={queue.length===0}>📢 Call Next Patient</Btn>
+    </div>
+
+    {queue.length===0?<div style={{textAlign:'center',padding:'40px 20px',color:'var(--text3)'}}>
+      <div style={{fontSize:48,marginBottom:12}}>✅</div>
+      <div style={{fontSize:16,fontWeight:600}}>Queue is empty!</div>
+    </div>:
+    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      {queue.map((appt,i)=>(
+        <div key={appt.id} style={{background:calling===appt.id?'rgba(0,180,255,.1)':'var(--card)',border:`1px solid ${calling===appt.id?'var(--accent)':'var(--border)'}`,borderRadius:12,padding:'14px 18px',display:'flex',alignItems:'center',gap:14,animation:i===0?'glow 3s infinite':'none',transition:'all .3s'}}>
+          <div style={{width:44,height:44,borderRadius:'50%',background:i===0?'var(--accent)':'var(--card2)',color:i===0?'#000':'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:16,fontFamily:'var(--fd)',flexShrink:0}}>
+            {i+1}
+          </div>
+          <div style={{flex:1}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              <span style={{fontWeight:600,fontSize:15}}>{appt.patientName}</span>
+              {i===0&&<span style={{background:'var(--accent)',color:'#000',fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20}}>UP NEXT</span>}
+              {calling===appt.id&&<span style={{background:'var(--green-dim)',color:'var(--green)',fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:20,animation:'pulse 1s infinite'}}>CALLING…</span>}
+            </div>
+            <div style={{fontSize:13,color:'var(--text2)',marginTop:3}}>⏰ {formatTime(appt.time)} · {appt.reason}</div>
+          </div>
+          <div style={{textAlign:'right',fontSize:12,color:'var(--text3)'}}>
+            <div>Wait: ~{(i+1)*15} min</div>
+            <Badge status={appt.status}/>
+          </div>
+          {i===0&&<div style={{display:'flex',gap:8}}>
+            <Btn size="sm" variant="success" onClick={()=>{onStatus(appt.id,'completed');setCalling(null);toast(`✅ ${appt.patientName} consultation done`,'success')}}>✓ Done</Btn>
+          </div>}
+        </div>
+      ))}
+    </div>}
+  </div>;
+}
+
+// ─── APPOINTMENT FORM ────────────────────────────────────────
+function ApptForm({appointments,onSave,onClose,editing=null,defaultDate=''}){
+  const[form,setForm]=useState({patientName:editing?.patientName||'',patientPhone:editing?.patientPhone||'',patientAge:editing?.patientAge||'',date:editing?.date||defaultDate||today(),time:editing?.time||'',reason:editing?.reason||'',notes:editing?.notes||'',status:editing?.status||'pending'});
+  const[errors,setErrors]=useState({});
+  const set=k=>v=>setForm(f=>({...f,[k]:v}));
+  const booked=appointments.filter(a=>a.date===form.date&&a.id!==editing?.id&&a.status!=='cancelled').map(a=>a.time);
+  const validate=()=>{const e={};if(!form.patientName.trim())e.patientName='Required';if(!form.patientPhone.match(/^\d{10}$/))e.patientPhone='Enter 10-digit phone';if(!form.patientAge||form.patientAge<1||form.patientAge>120)e.patientAge='Enter valid age';if(!form.date)e.date='Required';if(!form.time)e.time='Select a slot';if(booked.includes(form.time))e.time='Slot already booked!';if(!form.reason.trim())e.reason='Required';setErrors(e);return Object.keys(e).length===0};
+  const submit=()=>{if(!validate())return;onSave({...editing,...form,patientAge:Number(form.patientAge),id:editing?.id||genId(),vitals:editing?.vitals||{},prescription:editing?.prescription||null,createdAt:editing?.createdAt||new Date().toISOString()})};
+  const slotOpts=SLOT_TIMES.map(t=>({value:t,label:`${formatTime(t)}${booked.includes(t)?' — Booked':''}`}));
+  return<div style={{display:'flex',flexDirection:'column',gap:14}}>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div style={{gridColumn:'1/-1'}}><Inp label="Patient Name" value={form.patientName} onChange={set('patientName')} placeholder="Full name" required/>{errors.patientName&&<p style={{color:'var(--red)',fontSize:12,marginTop:4}}>{errors.patientName}</p>}</div>
+      <div><Inp label="Phone" type="tel" value={form.patientPhone} onChange={set('patientPhone')} placeholder="10-digit" required/>{errors.patientPhone&&<p style={{color:'var(--red)',fontSize:12,marginTop:4}}>{errors.patientPhone}</p>}</div>
+      <div><Inp label="Age" type="number" value={form.patientAge} onChange={set('patientAge')} min={1} max={120} required/>{errors.patientAge&&<p style={{color:'var(--red)',fontSize:12,marginTop:4}}>{errors.patientAge}</p>}</div>
+      <div><Inp label="Date" type="date" value={form.date} onChange={set('date')} min={today()}/></div>
+      <div><Inp label="Time Slot" value={form.time} onChange={set('time')} options={slotOpts} required/>{errors.time&&<p style={{color:'var(--red)',fontSize:12,marginTop:4}}>{errors.time}</p>}</div>
+      <div style={{gridColumn:'1/-1'}}><Inp label="Reason for Visit" value={form.reason} onChange={set('reason')} placeholder="Describe symptoms" required/></div>
+      <div style={{gridColumn:'1/-1'}}><Inp label="Notes (optional)" type="textarea" value={form.notes} onChange={set('notes')} placeholder="Additional notes…"/></div>
+      {editing&&<div style={{gridColumn:'1/-1'}}><Inp label="Status" value={form.status} onChange={set('status')} options={['pending','confirmed','completed','cancelled','rescheduled']}/></div>}
+    </div>
+    <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:8}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={submit}>{editing?'Save Changes':'+ Book Appointment'}</Btn>
+    </div>
+  </div>;
+}
+
+// ─── APPT CARD ───────────────────────────────────────────────
+function ApptCard({appt,onEdit,onCancel,onStatus,onPrescription,onVitals,onPrintRx,role,style={}}){
+  const[expanded,setExpanded]=useState(false);
+  const hasRx=!!appt.prescription;
+  const hasVitals=appt.vitals&&Object.keys(appt.vitals).length>0;
+  return<div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden',transition:'border .2s',...style}} onMouseOver={e=>e.currentTarget.style.borderColor='var(--border2)'} onMouseOut={e=>e.currentTarget.style.borderColor='var(--border)'}>
+    <div onClick={()=>setExpanded(!expanded)} style={{padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',gap:14}}>
+      <div style={{width:44,height:44,borderRadius:10,background:'var(--accent-dim)',border:'1px solid var(--border2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,fontFamily:'var(--fd)',color:'var(--accent)',flexShrink:0}}>
+        {appt.patientName.split(' ').map(n=>n[0]).join('').slice(0,2)}
+      </div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <span style={{fontWeight:600,fontSize:15}}>{appt.patientName}</span>
+          <span style={{fontSize:12,color:'var(--text3)'}}>Age {appt.patientAge}</span>
+          <Badge status={appt.status}/>
+          {hasRx&&<span style={{background:'var(--green-dim)',color:'var(--green)',fontSize:11,padding:'2px 8px',borderRadius:20,fontWeight:600}}>💊 Rx</span>}
+          {hasVitals&&<span style={{background:'var(--accent-dim)',color:'var(--accent)',fontSize:11,padding:'2px 8px',borderRadius:20,fontWeight:600}}>📊 Vitals</span>}
+        </div>
+        <div style={{fontSize:13,color:'var(--text2)',marginTop:3,display:'flex',gap:12,flexWrap:'wrap'}}>
+          <span>⏰ {formatTime(appt.time)}</span>
+          <span>📋 {appt.reason}</span>
+        </div>
+      </div>
+      <span style={{color:'var(--text3)',fontSize:18,transform:expanded?'rotate(180deg)':'',transition:'transform .2s'}}>⌄</span>
+    </div>
+    {expanded&&<div style={{padding:'0 18px 16px',borderTop:'1px solid var(--border)',paddingTop:14,animation:'fadeUp .15s ease'}}>
+      {hasVitals&&<div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:14,padding:'10px 14px',background:'var(--surface)',borderRadius:8}}>
+        {Object.entries(appt.vitals).filter(([,v])=>v).map(([k,v])=><span key={k} style={{fontSize:13,fontWeight:600,color:'var(--accent)'}}>{k.toUpperCase()}: <span style={{color:'var(--text)'}}>{v}</span></span>)}
+      </div>}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14,fontSize:13}}>
+        {[['Phone',appt.patientPhone],['Date',formatDate(appt.date)],['Reason',appt.reason]].map(([k,v])=><div key={k}><span style={{color:'var(--text3)'}}>{k}: </span><span>{v}</span></div>)}
+        {appt.notes&&<div style={{gridColumn:'1/-1'}}><span style={{color:'var(--text3)'}}>Notes: </span><span style={{fontStyle:'italic'}}>{appt.notes}</span></div>}
+      </div>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {role==='receptionist'&&<>
+          <Btn size="sm" variant="ghost" onClick={()=>onEdit(appt)}>✏ Edit</Btn>
+          {appt.status!=='cancelled'&&<Btn size="sm" variant="danger" onClick={()=>onCancel(appt.id)}>✕ Cancel</Btn>}
+          {appt.status==='pending'&&<Btn size="sm" variant="success" onClick={()=>onStatus(appt.id,'confirmed')}>✓ Confirm</Btn>}
+        </>}
+        {role==='doctor'&&<>
+          <Btn size="sm" variant="ghost" onClick={()=>onVitals(appt)}>📊 Record Vitals</Btn>
+          <Btn size="sm" variant="purple" onClick={()=>onPrescription(appt)}>{hasRx?'✏ Edit Rx':'💊 Write Prescription'}</Btn>
+          {hasRx&&<Btn size="sm" variant="success" onClick={()=>onPrintRx(appt)}>🖨 Print Rx</Btn>}
+          {appt.status==='confirmed'&&<Btn size="sm" variant="success" onClick={()=>onStatus(appt.id,'completed')}>★ Mark Done</Btn>}
+        </>}
+      </div>
+    </div>}
+  </div>;
+}
+
+// ─── STATS ROW ────────────────────────────────────────────────
+function StatsRow({appointments}){
+  const d=appointments.filter(a=>a.date===today());
+  const stats=[
+    {label:"Today's Appts",value:d.length,color:'var(--accent)',bg:'var(--accent-dim)'},
+    {label:'Pending',value:d.filter(a=>a.status==='pending').length,color:'var(--amber)',bg:'var(--amber-dim)'},
+    {label:'Confirmed',value:d.filter(a=>a.status==='confirmed').length,color:'var(--green)',bg:'var(--green-dim)'},
+    {label:'Completed',value:d.filter(a=>a.status==='completed').length,color:'var(--purple)',bg:'var(--purple-dim)'},
+    {label:'Total Records',value:appointments.length,color:'var(--text)',bg:'var(--card2)'},
+    {label:'Prescriptions',value:appointments.filter(a=>a.prescription).length,color:'var(--pink)',bg:'var(--pink-dim)'},
+  ];
+  return<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:12,marginBottom:24}}>
+    {stats.map((s,i)=><div key={i} style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'var(--r)',padding:'16px 20px',animation:`fadeUp .3s ease ${i*.05}s both`,cursor:'default'}}>
+      <div style={{fontSize:30,fontWeight:800,fontFamily:'var(--fd)',color:s.color,letterSpacing:-1,animation:'countUp .4s ease'}}>{s.value}</div>
+      <div style={{fontSize:12,color:'var(--text3)',marginTop:4,lineHeight:1.3}}>{s.label}</div>
+    </div>)}
+  </div>;
+}
+
+// ─── CALENDAR ─────────────────────────────────────────────────
+function CalendarView({appointments,onSelectDate,selectedDate}){
+  const[viewDate,setViewDate]=useState(new Date());
+  const yr=viewDate.getFullYear(),mo=viewDate.getMonth();
+  const firstDay=new Date(yr,mo,1).getDay();
+  const days=new Date(yr,mo+1,0).getDate();
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const todayStr=today();
+  const byDate={};appointments.forEach(a=>{byDate[a.date]=(byDate[a.date]||0)+1});
+  return<Card style={{padding:20}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+      <h3 style={{fontFamily:'var(--fd)',fontWeight:700,fontSize:16}}>{months[mo]} {yr}</h3>
+      <div style={{display:'flex',gap:6}}>
+        <Btn size="sm" variant="ghost" onClick={()=>setViewDate(new Date(yr,mo-1,1))}>‹</Btn>
+        <Btn size="sm" variant="ghost" onClick={()=>setViewDate(new Date())}>Today</Btn>
+        <Btn size="sm" variant="ghost" onClick={()=>setViewDate(new Date(yr,mo+1,1))}>›</Btn>
+      </div>
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,textAlign:'center'}}>
+      {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=><div key={d} style={{fontSize:11,color:'var(--text3)',fontWeight:600,padding:'4px 0'}}>{d}</div>)}
+      {Array(firstDay).fill(null).map((_,i)=><div key={'e'+i}/>)}
+      {Array(days).fill(null).map((_,i)=>{
+        const d=i+1;
+        const ds=`${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const count=byDate[ds]||0;
+        const isToday=ds===todayStr,isSel=ds===selectedDate;
+        return<div key={d} onClick={()=>onSelectDate(ds)} style={{padding:'5px 3px',borderRadius:6,cursor:'pointer',position:'relative',background:isSel?'var(--accent)':isToday?'var(--accent-dim)':'transparent',color:isSel?'#000':isToday?'var(--accent)':'var(--text)',fontWeight:isToday||isSel?700:400,fontSize:13,transition:'background .15s'}} onMouseOver={e=>{if(!isSel)e.currentTarget.style.background='var(--card2)'}} onMouseOut={e=>{if(!isSel)e.currentTarget.style.background=isToday?'var(--accent-dim)':'transparent'}}>
+          {d}
+          {count>0&&<div style={{position:'absolute',bottom:1,left:'50%',transform:'translateX(-50%)',width:4,height:4,borderRadius:'50%',background:isSel?'#000':count>2?'var(--amber)':'var(--green)'}}/>}
+        </div>;
+      })}
+    </div>
+    {selectedDate&&<div style={{marginTop:12,paddingTop:12,borderTop:'1px solid var(--border)',fontSize:13,color:'var(--text2)'}}>
+      <span style={{color:'var(--accent)',fontWeight:600}}>{formatDate(selectedDate)}</span>
+      <span style={{marginLeft:8}}>{byDate[selectedDate]||0} appointment{byDate[selectedDate]!==1?'s':''}</span>
+    </div>}
+  </Card>;
+}
+
+// ─── TIMELINE ─────────────────────────────────────────────────
+function TimelineView({appointments,date,onEdit,onCancel,onStatus,onPrescription,onVitals,onPrintRx,role}){
+  const dayAppts=appointments.filter(a=>a.date===date).sort((a,b)=>a.time.localeCompare(b.time));
+  return<div>
+    <h3 style={{fontFamily:'var(--fd)',fontSize:16,fontWeight:700,marginBottom:16,color:'var(--text2)'}}>Schedule for <span style={{color:'var(--text)'}}>{formatDate(date)}</span></h3>
+    {dayAppts.length===0?<div style={{textAlign:'center',padding:'40px 20px',color:'var(--text3)'}}><div style={{fontSize:40,marginBottom:12}}>📅</div>No appointments for this day.</div>:
+    <div style={{position:'relative'}}>
+      <div style={{position:'absolute',left:28,top:0,bottom:0,width:1,background:'var(--border)'}}/>
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
+        {dayAppts.map((appt,i)=><div key={appt.id} style={{display:'flex',gap:16,alignItems:'flex-start',animation:`fadeUp .25s ease ${i*.07}s both`}}>
+          <div style={{width:56,flexShrink:0,textAlign:'center',paddingTop:14}}>
+            <div style={{width:12,height:12,borderRadius:'50%',background:appt.status==='cancelled'?'var(--red)':appt.status==='completed'?'var(--green)':'var(--accent)',margin:'0 auto 6px',boxShadow:`0 0 8px ${appt.status==='cancelled'?'var(--red)':appt.status==='completed'?'var(--green)':'var(--accent)'}`}}/>
+            <div style={{fontSize:11,color:'var(--text3)',fontWeight:600}}>{appt.time}</div>
+          </div>
+          <div style={{flex:1}}>
+            <ApptCard appt={appt} onEdit={onEdit} onCancel={onCancel} onStatus={onStatus} onPrescription={onPrescription} onVitals={onVitals} onPrintRx={onPrintRx} role={role}/>
+          </div>
+        </div>)}
+      </div>
+    </div>}
+  </div>;
+}
+
+// ─── SEARCH ───────────────────────────────────────────────────
+function SearchBar({appointments,onSelect}){
+  const[q,setQ]=useState('');
+  const results=q.length>1?appointments.filter(a=>a.patientName.toLowerCase().includes(q.toLowerCase())||a.patientPhone.includes(q)||a.reason.toLowerCase().includes(q.toLowerCase())).slice(0,6):[];
+  return<div style={{position:'relative',width:'100%',maxWidth:360}}>
+    <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍  Search patients…" style={{width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:10,padding:'9px 16px',color:'var(--text)',fontSize:14,outline:'none',fontFamily:'var(--fb)'}} onFocus={e=>e.target.style.borderColor='var(--border2)'} onBlur={e=>{e.target.style.borderColor='var(--border)';setTimeout(()=>setQ(''),200)}}/>
+    {results.length>0&&<div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--card)',border:'1px solid var(--border2)',borderRadius:10,marginTop:6,zIndex:100,overflow:'hidden',boxShadow:'0 16px 48px rgba(0,0,0,.5)'}}>
+      {results.map(a=><div key={a.id} onClick={()=>{onSelect(a);setQ('')}} style={{padding:'10px 16px',cursor:'pointer',borderBottom:'1px solid var(--border)',fontSize:13,display:'flex',justifyContent:'space-between',alignItems:'center'}} onMouseOver={e=>e.currentTarget.style.background='var(--card2)'} onMouseOut={e=>e.currentTarget.style.background=''}>
+        <div><div style={{fontWeight:500}}>{a.patientName}</div><div style={{color:'var(--text3)',fontSize:12}}>{a.patientPhone} · {a.reason}</div></div>
+        <div style={{textAlign:'right'}}><Badge status={a.status}/><div style={{fontSize:11,color:'var(--text3)',marginTop:3}}>{formatDate(a.date)}</div></div>
+      </div>)}
+    </div>}
+  </div>;
+}
+
+// ─── ANALYTICS ────────────────────────────────────────────────
+function Analytics({appointments}){
+  const byStatus={},byDay={},byReason={};
+  appointments.forEach(a=>{byStatus[a.status]=(byStatus[a.status]||0)+1;byDay[a.date]=(byDay[a.date]||0)+1;const r=a.reason.split(' ').slice(0,2).join(' ');byReason[r]=(byReason[r]||0)+1});
+  const maxDay=Math.max(...Object.values(byDay),1);
+  const last7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);const s=d.toISOString().split('T')[0];return{date:s,label:['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()],count:byDay[s]||0}});
+  const reasons=Object.entries(byReason).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const maxR=Math.max(...reasons.map(r=>r[1]),1);
+  const colorVars={green:'var(--green)',amber:'var(--amber)',red:'var(--red)',accent:'var(--accent)'};
+  return<div style={{display:'flex',flexDirection:'column',gap:20}}>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+      <Card><h4 style={{fontFamily:'var(--fd)',fontSize:14,fontWeight:700,marginBottom:16,color:'var(--text2)'}}>7-Day Activity</h4>
+        <div style={{display:'flex',alignItems:'flex-end',gap:8,height:100}}>
+          {last7.map(d=><div key={d.date} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+            <div style={{width:'100%',borderRadius:4,height:`${(d.count/maxDay)*80}px`,minHeight:d.count?4:0,background:d.date===today()?'var(--accent)':'var(--accent-dim)',transition:'height .5s ease'}}/>
+            <span style={{fontSize:10,color:'var(--text3)'}}>{d.label}</span>
+            {d.count>0&&<span style={{fontSize:10,color:'var(--accent)',fontWeight:600}}>{d.count}</span>}
+          </div>)}
+        </div>
+      </Card>
+      <Card><h4 style={{fontFamily:'var(--fd)',fontSize:14,fontWeight:700,marginBottom:16,color:'var(--text2)'}}>Status Breakdown</h4>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {Object.entries(byStatus).map(([s,c])=>{const t=appointments.length||1;const p=Math.round(c/t*100);const cv=colorVars[statusColors[s]]||'var(--accent)';return<div key={s}><div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}><span style={{textTransform:'capitalize',color:'var(--text2)'}}>{s}</span><span style={{color:cv,fontWeight:600}}>{c} ({p}%)</span></div><div style={{height:6,background:'var(--surface)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:`${p}%`,background:cv,borderRadius:3,transition:'width .5s ease'}}/></div></div>})}
+        </div>
+      </Card>
+    </div>
+    <Card><h4 style={{fontFamily:'var(--fd)',fontSize:14,fontWeight:700,marginBottom:16,color:'var(--text2)'}}>Common Visit Reasons</h4>
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {reasons.map(([r,c])=><div key={r} style={{display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:13,color:'var(--text)',minWidth:160,flex:'0 0 160px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r}</span>
+          <div style={{flex:1,height:8,background:'var(--surface)',borderRadius:4,overflow:'hidden'}}><div style={{height:'100%',width:`${(c/maxR)*100}%`,background:'linear-gradient(90deg,var(--accent),var(--green))',borderRadius:4}}/></div>
+          <span style={{fontSize:12,color:'var(--accent)',fontWeight:600,minWidth:20}}>{c}</span>
+        </div>)}
+      </div>
+    </Card>
+  </div>;
+}
+
+// ─── PATIENT HISTORY ──────────────────────────────────────────
+function PatientHistory({appointments,onPrintRx,doctor}){
+  const byPhone={};
+  appointments.forEach(a=>{if(!byPhone[a.patientPhone])byPhone[a.patientPhone]={name:a.patientName,phone:a.patientPhone,age:a.patientAge,visits:[]};byPhone[a.patientPhone].visits.push(a)});
+  const patients=Object.values(byPhone).sort((a,b)=>b.visits.length-a.visits.length);
+  const[selected,setSelected]=useState(null);
+  return<div style={{display:'grid',gridTemplateColumns:selected?'260px 1fr':'1fr',gap:16}}>
+    <div>
+      <h4 style={{fontFamily:'var(--fd)',fontSize:15,fontWeight:700,marginBottom:14,color:'var(--text2)'}}>All Patients ({patients.length})</h4>
+      <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:600,overflowY:'auto'}}>
+        {patients.map(p=><div key={p.phone} onClick={()=>setSelected(p)} style={{padding:'12px 16px',borderRadius:10,cursor:'pointer',border:`1px solid ${selected?.phone===p.phone?'var(--border2)':'var(--border)'}`,background:selected?.phone===p.phone?'var(--card2)':'var(--card)',transition:'all .15s'}}>
+          <div style={{fontWeight:600,fontSize:14}}>{p.name}</div>
+          <div style={{fontSize:12,color:'var(--text3)',marginTop:2}}>{p.phone} · {p.visits.length} visit{p.visits.length!==1?'s':''} · {p.visits.filter(v=>v.prescription).length} Rx</div>
+        </div>)}
+      </div>
+    </div>
+    {selected&&<div style={{animation:'fadeUp .2s ease'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <h4 style={{fontFamily:'var(--fd)',fontSize:15,fontWeight:700}}>{selected.name}'s History</h4>
+        <Btn size="sm" variant="ghost" onClick={()=>setSelected(null)}>✕ Close</Btn>
+      </div>
+      <div style={{display:'flex',gap:12,marginBottom:14,flexWrap:'wrap'}}>
+        {[['Age',selected.age],['Phone',selected.phone],['Visits',selected.visits.length],['Prescriptions',selected.visits.filter(v=>v.prescription).length]].map(([k,v])=><Card key={k} style={{padding:'10px 16px'}}><div style={{fontSize:11,color:'var(--text3)'}}>{k}</div><div style={{fontWeight:700,fontSize:16,fontFamily:'var(--fd)'}}>{v}</div></Card>)}
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {selected.visits.sort((a,b)=>b.date.localeCompare(a.date)).map(a=><Card key={a.id} style={{padding:'12px 16px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:600}}>{formatDate(a.date)} at {formatTime(a.time)}</div>
+              <div style={{fontSize:12,color:'var(--text2)',marginTop:2}}>{a.reason}</div>
+              {a.prescription&&<div style={{fontSize:12,color:'var(--green)',marginTop:4}}>💊 {a.prescription.diagnosis} · {a.prescription.medicines.length} medicine{a.prescription.medicines.length!==1?'s':''}</div>}
+              {a.notes&&<div style={{fontSize:12,color:'var(--text3)',marginTop:2,fontStyle:'italic'}}>"{a.notes}"</div>}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:6,alignItems:'flex-end'}}>
+              <Badge status={a.status}/>
+              {a.prescription&&<Btn size="sm" variant="ghost" onClick={()=>onPrintRx(a)}>🖨 Print Rx</Btn>}
+            </div>
+          </div>
+        </Card>)}
+      </div>
+    </div>}
+  </div>;
+}
+
+// ─── AVAILABILITY ─────────────────────────────────────────────
+function AvailabilityManager({blockedSlots,onToggle}){
+  const[date,setDate]=useState(today());
+  const blocked=blockedSlots.filter(b=>b.date===date).map(b=>b.time);
+  return<Card>
+    <h4 style={{fontFamily:'var(--fd)',fontSize:16,fontWeight:700,marginBottom:16}}>Manage Availability</h4>
+    <Inp label="Select Date" type="date" value={date} onChange={setDate} min={today()}/>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:8,marginTop:16}}>
+      {SLOT_TIMES.map(t=>{const isBlocked=blocked.includes(t);return<button key={t} onClick={()=>onToggle(date,t)} style={{padding:'10px 12px',borderRadius:8,border:`1px solid ${isBlocked?'rgba(255,77,106,.3)':'var(--border)'}`,background:isBlocked?'var(--red-dim)':'var(--surface)',color:isBlocked?'var(--red)':'var(--text2)',cursor:'pointer',fontSize:13,fontWeight:500,fontFamily:'var(--fb)',transition:'all .15s'}}>{formatTime(t)}<br/><span style={{fontSize:10,opacity:.7}}>{isBlocked?'Blocked':'Available'}</span></button>})}
+    </div>
+    <p style={{fontSize:12,color:'var(--text3)',marginTop:12}}>Click a slot to block/unblock. Blocked slots won't appear for booking.</p>
+  </Card>;
+}
+
+// ─── REMINDERS PANEL ─────────────────────────────────────────
+function RemindersPanel({appointments}){
+  const upcoming=appointments.filter(a=>{
+    const apptDate=new Date(a.date+'T'+a.time);
+    const diff=(apptDate-new Date())/60000;
+    return diff>0&&diff<=120&&a.status!=='cancelled';
+  }).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+
+  const overdue=appointments.filter(a=>{
+    const apptDate=new Date(a.date+'T'+a.time);
+    const diff=(new Date()-apptDate)/60000;
+    return diff>0&&diff<=30&&a.status==='confirmed';
+  });
+
+  return<Card glow>
+    <h4 style={{fontFamily:'var(--fd)',fontSize:16,fontWeight:700,marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+      🔔 Smart Reminders
+      {upcoming.length>0&&<span style={{background:'var(--red)',color:'white',borderRadius:'50%',width:20,height:20,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700}}>{upcoming.length}</span>}
+    </h4>
+    {overdue.length>0&&<div style={{background:'var(--red-dim)',border:'1px solid rgba(255,77,106,.3)',borderRadius:10,padding:'12px 16px',marginBottom:12}}>
+      <div style={{fontWeight:600,color:'var(--red)',fontSize:14,marginBottom:8}}>⚠️ Overdue — Not yet called</div>
+      {overdue.map(a=><div key={a.id} style={{fontSize:13,color:'var(--text2)',marginBottom:4}}>{a.patientName} · {formatTime(a.time)}</div>)}
+    </div>}
+    {upcoming.length===0&&overdue.length===0?<div style={{textAlign:'center',color:'var(--text3)',padding:'20px 0',fontSize:14}}>No upcoming reminders right now ✓</div>:
+    upcoming.map(a=>{
+      const diff=Math.round((new Date(a.date+'T'+a.time)-new Date())/60000);
+      return<div key={a.id} style={{background:'var(--amber-dim)',border:'1px solid rgba(255,176,32,.2)',borderRadius:10,padding:'12px 16px',marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div>
+          <div style={{fontWeight:600,fontSize:14}}>{a.patientName}</div>
+          <div style={{fontSize:12,color:'var(--text2)',marginTop:2}}>{a.reason} · {formatTime(a.time)}</div>
+        </div>
+        <div style={{background:'var(--amber)',color:'#000',padding:'4px 10px',borderRadius:20,fontSize:12,fontWeight:700}}>in {diff}m</div>
+      </div>;
+    })}
+  </Card>;
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────
+function App(){
+  const[user,setUser]=useState(null);
+  const[appts,setAppts]=useState(INITIAL_APPTS);
+  const[blockedSlots,setBlockedSlots]=useState([]);
+  const[activeTab,setActiveTab]=useState('dashboard');
+  const[showForm,setShowForm]=useState(false);
+  const[editingAppt,setEditingAppt]=useState(null);
+  const[selectedDate,setSelectedDate]=useState(today());
+  const[rxModal,setRxModal]=useState(null);
+  const[printRxModal,setPrintRxModal]=useState(null);
+  const[vitalsModal,setVitalsModal]=useState(null);
+  const{toasts,add:toast,remove}=useToast();
+
+  if(!user)return<LoginPage onLogin={setUser}/>;
+
+  const addAppt=appt=>{
+    if(editingAppt)setAppts(p=>p.map(a=>a.id===appt.id?appt:a));
+    else setAppts(p=>[...p,appt]);
+    toast(editingAppt?'Appointment updated!':'Appointment booked!','success');
+    setShowForm(false);setEditingAppt(null);
+  };
+  const cancelAppt=id=>{setAppts(p=>p.map(a=>a.id===id?{...a,status:'cancelled'}:a));toast('Appointment cancelled.','warning')};
+  const updateStatus=(id,status)=>{setAppts(p=>p.map(a=>a.id===id?{...a,status}:a));toast(`Status → ${status}!`,'success')};
+  const savePrescription=(apptId,rx)=>{setAppts(p=>p.map(a=>a.id===apptId?{...a,prescription:rx,status:a.status==='confirmed'?'completed':a.status}:a));setRxModal(null);toast('Prescription saved! Patient can now print medicine receipt.','success')};
+  const saveVitals=(apptId,vitals)=>{setAppts(p=>p.map(a=>a.id===apptId?{...a,vitals}:a));setVitalsModal(null);toast('Vitals recorded!','success')};
+  const toggleBlock=(date,time)=>{const exists=blockedSlots.find(b=>b.date===date&&b.time===time);if(exists){setBlockedSlots(p=>p.filter(b=>!(b.date===date&&b.time===time)));toast(`${formatTime(time)} unblocked.`,'info')}else{setBlockedSlots(p=>[...p,{date,time}]);toast(`${formatTime(time)} blocked.`,'warning')}};
+
+  const docTabs=[['dashboard','📊 Dashboard'],['schedule','📅 Schedule'],['queue','🔢 Queue'],['patients','👥 Patients'],['availability','🔒 Availability'],['analytics','📈 Analytics']];
+  const recTabs=[['dashboard','📊 Dashboard'],['schedule','📅 Schedule'],['book','➕ Book'],['patients','👥 Patients'],['analytics','📈 Analytics']];
+  const tabs=user.role==='doctor'?docTabs:recTabs;
+
+  const apptHandlers={
+    onEdit:a=>{setEditingAppt(a);setShowForm(true)},
+    onCancel:cancelAppt,
+    onStatus:updateStatus,
+    onPrescription:a=>setRxModal(a),
+    onVitals:a=>setVitalsModal(a),
+    onPrintRx:a=>setPrintRxModal(a),
+    role:user.role
+  };
+
+  return<div style={{minHeight:'100vh',display:'flex',flexDirection:'column'}}>
+    {/* NAV */}
+    <nav className="no-print" style={{background:'var(--surface)',borderBottom:'1px solid var(--border)',padding:'0 20px',display:'flex',alignItems:'center',gap:16,height:58,position:'sticky',top:0,zIndex:50,backdropFilter:'blur(8px)'}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginRight:4,flexShrink:0}}>
+        <div style={{width:30,height:30,background:'var(--accent)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:'#000',fontFamily:'var(--fd)',animation:'glow 4s infinite'}}>+</div>
+        <span style={{fontFamily:'var(--fd)',fontWeight:800,fontSize:17,letterSpacing:-.5}}>MediSync</span>
+      </div>
+      <div style={{flex:1,display:'flex',gap:2,overflowX:'auto'}}>
+        {tabs.map(([id,label])=><button key={id} onClick={()=>setActiveTab(id)} style={{padding:'6px 12px',borderRadius:8,border:'none',cursor:'pointer',fontSize:13,fontWeight:500,fontFamily:'var(--fb)',transition:'all .15s',background:activeTab===id?'var(--accent-dim)':'transparent',color:activeTab===id?'var(--accent)':'var(--text2)',whiteSpace:'nowrap',flexShrink:0}}>{label}</button>)}
+      </div>
+      <SearchBar appointments={appts} onSelect={a=>{setSelectedDate(a.date);setActiveTab('schedule')}}/>
+      <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+        <div style={{width:32,height:32,borderRadius:8,background:'var(--accent-dim)',border:'1px solid var(--border2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'var(--accent)',fontFamily:'var(--fd)'}}>{user.avatar}</div>
+        <span style={{fontSize:13,color:'var(--text2)',whiteSpace:'nowrap',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{user.name.split(' ')[0]}</span>
+        <button onClick={()=>setUser(null)} style={{background:'none',border:'1px solid var(--border)',borderRadius:8,color:'var(--text3)',cursor:'pointer',padding:'4px 10px',fontSize:12,fontFamily:'var(--fb)',flexShrink:0}}>Out</button>
+      </div>
+    </nav>
+
+    {/* MAIN */}
+    <main style={{flex:1,padding:'24px 20px',maxWidth:1200,width:'100%',margin:'0 auto'}}>
+      {/* DASHBOARD */}
+      {activeTab==='dashboard'&&<div style={{animation:'fadeUp .3s ease'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:24,flexWrap:'wrap',gap:12}}>
+          <div>
+            <h1 style={{fontFamily:'var(--fd)',fontSize:26,fontWeight:800,letterSpacing:-1}}>Good {new Date().getHours()<12?'morning':'afternoon'}, <span style={{color:'var(--accent)'}}>{user.name.split(' ')[0]}</span></h1>
+            <p style={{color:'var(--text3)',fontSize:14,marginTop:4}}>{new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
+          </div>
+          {user.role==='receptionist'&&<Btn onClick={()=>{setEditingAppt(null);setShowForm(true)}} size="lg" style={{fontFamily:'var(--fd)'}}>+ New Appointment</Btn>}
+        </div>
+        <StatsRow appointments={appts}/>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 320px',gap:20,alignItems:'start'}}>
+          <div>
+            <h3 style={{fontFamily:'var(--fd)',fontSize:16,fontWeight:700,marginBottom:14,color:'var(--text2)'}}>Today's Upcoming</h3>
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              {appts.filter(a=>a.date===today()&&a.status!=='cancelled'&&a.status!=='completed').sort((a,b)=>a.time.localeCompare(b.time)).slice(0,6).map(a=><ApptCard key={a.id} appt={a} {...apptHandlers}/>)}
+              {appts.filter(a=>a.date===today()&&a.status!=='cancelled'&&a.status!=='completed').length===0&&<div style={{textAlign:'center',padding:40,color:'var(--text3)'}}>No upcoming appointments today 🎉</div>}
+            </div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:16}}>
+            <CalendarView appointments={appts} selectedDate={selectedDate} onSelectDate={d=>{setSelectedDate(d);setActiveTab('schedule')}}/>
+            <RemindersPanel appointments={appts}/>
+          </div>
+        </div>
+      </div>}
+
+      {/* SCHEDULE */}
+      {activeTab==='schedule'&&<div style={{animation:'fadeUp .3s ease'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+          <h1 style={{fontFamily:'var(--fd)',fontSize:24,fontWeight:800}}>Schedule</h1>
+          {user.role==='receptionist'&&<Btn onClick={()=>{setEditingAppt(null);setShowForm(true)}}>+ Book Appointment</Btn>}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'300px 1fr',gap:20,alignItems:'start'}}>
+          <CalendarView appointments={appts} selectedDate={selectedDate} onSelectDate={setSelectedDate}/>
+          <TimelineView appointments={appts} date={selectedDate} {...apptHandlers}/>
+        </div>
+      </div>}
+
+      {/* QUEUE (doctor) */}
+      {activeTab==='queue'&&user.role==='doctor'&&<div style={{animation:'fadeUp .3s ease'}}>
+        <h1 style={{fontFamily:'var(--fd)',fontSize:24,fontWeight:800,marginBottom:24}}>Patient Queue</h1>
+        <QueueManager appointments={appts} onStatus={updateStatus} toast={toast}/>
+      </div>}
+
+      {/* BOOK */}
+      {activeTab==='book'&&user.role==='receptionist'&&<div style={{animation:'fadeUp .3s ease',maxWidth:600}}>
+        <h1 style={{fontFamily:'var(--fd)',fontSize:24,fontWeight:800,marginBottom:24}}>Book New Appointment</h1>
+        <Card glow><ApptForm appointments={appts} onSave={addAppt} onClose={()=>setActiveTab('dashboard')} defaultDate={selectedDate}/></Card>
+      </div>}
+
+      {/* PATIENTS */}
+      {activeTab==='patients'&&<div style={{animation:'fadeUp .3s ease'}}>
+        <h1 style={{fontFamily:'var(--fd)',fontSize:24,fontWeight:800,marginBottom:24}}>Patient Records</h1>
+        <PatientHistory appointments={appts} onPrintRx={a=>setPrintRxModal(a)} doctor={USERS[0]}/>
+      </div>}
+
+      {/* AVAILABILITY */}
+      {activeTab==='availability'&&user.role==='doctor'&&<div style={{animation:'fadeUp .3s ease',maxWidth:640}}>
+        <h1 style={{fontFamily:'var(--fd)',fontSize:24,fontWeight:800,marginBottom:24}}>My Availability</h1>
+        <AvailabilityManager blockedSlots={blockedSlots} onToggle={toggleBlock}/>
+      </div>}
+
+      {/* ANALYTICS */}
+      {activeTab==='analytics'&&<div style={{animation:'fadeUp .3s ease'}}>
+        <h1 style={{fontFamily:'var(--fd)',fontSize:24,fontWeight:800,marginBottom:24}}>Analytics</h1>
+        <Analytics appointments={appts}/>
+      </div>}
+    </main>
+
+    {/* MODALS */}
+    <Modal open={showForm} onClose={()=>{setShowForm(false);setEditingAppt(null)}} title={editingAppt?'Edit Appointment':'New Appointment'} width={560}>
+      <ApptForm appointments={appts} onSave={addAppt} onClose={()=>{setShowForm(false);setEditingAppt(null)}} editing={editingAppt} defaultDate={selectedDate}/>
+    </Modal>
+
+    <Modal open={!!rxModal} onClose={()=>setRxModal(null)} title={`💊 Prescription — ${rxModal?.patientName||''}`} width={680}>
+      {rxModal&&<PrescriptionWriter appt={rxModal} doctor={USERS[0]} onSave={rx=>savePrescription(rxModal.id,rx)} onClose={()=>setRxModal(null)}/>}
+    </Modal>
+
+    <Modal open={!!printRxModal} onClose={()=>setPrintRxModal(null)} title={`🖨 Print Prescription — ${printRxModal?.patientName||''}`} width={700}>
+      {printRxModal&&printRxModal.prescription?<PrintableRx appt={printRxModal} doctor={USERS[0]} onClose={()=>setPrintRxModal(null)}/>:
+      <div style={{textAlign:'center',padding:'30px 0',color:'var(--text3)'}}>No prescription found for this appointment.<br/><br/>{user.role==='doctor'&&<Btn onClick={()=>{setRxModal(printRxModal);setPrintRxModal(null)}}>Write Prescription Now</Btn>}</div>}
+    </Modal>
+
+    <Modal open={!!vitalsModal} onClose={()=>setVitalsModal(null)} title={`📊 Record Vitals — ${vitalsModal?.patientName||''}`} width={560}>
+      {vitalsModal&&<VitalsRecorder appt={vitalsModal} onSave={v=>saveVitals(vitalsModal.id,v)} onClose={()=>setVitalsModal(null)}/>}
+    </Modal>
+
+    <Toast toasts={toasts} remove={remove}/>
+  </div>;
+}
+
+// ─── LOGIN ────────────────────────────────────────────────────
+function LoginPage({onLogin}){
+  const[email,setEmail]=useState('');
+  const[pw,setPw]=useState('');
+  const[err,setErr]=useState('');
+  const[loading,setLoading]=useState(false);
+  const submit=()=>{setErr('');setLoading(true);setTimeout(()=>{const u=USERS.find(u=>u.email===email&&u.password===pw);if(u)onLogin(u);else setErr('Invalid credentials');setLoading(false)},600)};
+  return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)',position:'relative',overflow:'hidden'}}>
+    <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(0,180,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,180,255,.04) 1px,transparent 1px)',backgroundSize:'40px 40px',pointerEvents:'none'}}/>
+    <div style={{position:'absolute',width:700,height:700,borderRadius:'50%',background:'radial-gradient(circle,rgba(0,180,255,.06) 0%,transparent 70%)',top:'50%',left:'50%',transform:'translate(-50%,-50%)',pointerEvents:'none'}}/>
+    <div style={{width:'100%',maxWidth:420,animation:'fadeUp .4s ease',position:'relative',padding:16}}>
+      <div style={{textAlign:'center',marginBottom:36}}>
+        <div style={{display:'inline-flex',alignItems:'center',gap:12,marginBottom:12}}>
+          <div style={{width:44,height:44,background:'var(--accent)',borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,fontWeight:700,color:'#000',fontFamily:'var(--fd)',animation:'glow 3s infinite'}}>+</div>
+          <span style={{fontFamily:'var(--fd)',fontSize:28,fontWeight:800,letterSpacing:-1}}>MediSync</span>
+        </div>
+        <p style={{color:'var(--text2)',fontSize:14}}>Smart Clinic Operating System</p>
+        <p style={{color:'var(--text3)',fontSize:12,marginTop:4}}>Appointments · Prescriptions · Vitals · Analytics</p>
+      </div>
+      <Card style={{padding:28}} glow>
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          <Inp label="Email address" type="email" value={email} onChange={setEmail} placeholder="you@clinic.com" required/>
+          <Inp label="Password" type="password" value={pw} onChange={setPw} placeholder="••••••••" required/>
+          {err&&<div style={{background:'var(--red-dim)',border:'1px solid rgba(255,77,106,.2)',color:'var(--red)',borderRadius:8,padding:'10px 14px',fontSize:13}}>{err}</div>}
+          <Btn onClick={submit} size="lg" full disabled={loading} style={{fontFamily:'var(--fd)',letterSpacing:.5,marginTop:4}}>{loading?'⟳ Signing in…':'Sign In →'}</Btn>
+        </div>
+        <div style={{marginTop:20,display:'flex',flexDirection:'column',gap:8}}>
+          <p style={{fontSize:12,color:'var(--text3)',textAlign:'center',marginBottom:2}}>Demo credentials — click to fill</p>
+          {[['🩺 Doctor','doctor@clinic.com','doctor123','Write Rx, Vitals, Queue'],['💼 Receptionist','reception@clinic.com','recep123','Book, Confirm, Manage']].map(([role,e,p,desc])=><div key={role} onClick={()=>{setEmail(e);setPw(p)}} style={{cursor:'pointer',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:8,padding:'10px 14px',transition:'border .15s'}} onMouseOver={e=>e.currentTarget.style.borderColor='var(--border2)'} onMouseOut={e=>e.currentTarget.style.borderColor='var(--border)'}>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:13}}><span style={{fontWeight:600,color:'var(--accent)'}}>{role}</span><span style={{color:'var(--text3)',fontSize:12}}>{e}</span></div>
+            <div style={{fontSize:11,color:'var(--text3)',marginTop:3}}>{desc}</div>
+          </div>)}
+        </div>
+      </Card>
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
