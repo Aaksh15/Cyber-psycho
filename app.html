@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ClinicOS</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="top-left">
+        <div class="logo sm" aria-hidden="true"></div>
+        <div>
+          <div class="top-title">ClinicOS</div>
+          <div class="top-sub">Appointments & schedule, zero chaos.</div>
+        </div>
+      </div>
+      <div class="top-right">
+        <div class="date-wrap">
+          <label class="mini muted" for="day">Day</label>
+          <input id="day" type="date" />
+        </div>
+        <button id="printBtn" class="btn">Print</button>
+        <button id="logoutBtn" class="btn danger">Logout</button>
+      </div>
+    </header>
++
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="userbox">
+          <div class="avatar" aria-hidden="true"></div>
+          <div>
+            <div class="user-name" id="uName">—</div>
+            <div class="user-role" id="uRole">—</div>
+          </div>
+        </div>
++
+        <nav class="nav">
+          <button class="nav-item active" data-view="schedule">Schedule</button>
+          <button class="nav-item" data-view="book" id="bookTab">Booking</button>
+          <button class="nav-item" data-view="stats">Stats</button>
+        </nav>
++
+        <div class="hint">
+          <div class="hint-title">Smart clash prevention</div>
+          <div class="hint-body">ClinicOS blocks overlapping bookings automatically.</div>
+        </div>
+      </aside>
++
+      <section class="content">
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
++
+        <section id="view-schedule" class="view">
+          <div class="view-head">
+            <h1>Schedule</h1>
+            <div class="muted" id="scheduleSub">—</div>
+          </div>
+          <div id="schedule" class="schedule"></div>
+        </section>
++
+        <section id="view-book" class="view hidden">
+          <div class="view-head">
+            <h1>Booking</h1>
+            <div class="muted">Receptionist workflow for booking, canceling and rescheduling.</div>
+          </div>
++
+          <div class="grid2">
+            <div class="card">
+              <div class="card-title">New appointment</div>
+              <form id="bookForm" class="form">
+                <div class="row2">
+                  <label class="field">
+                    <span>Patient name</span>
+                    <input name="patient_name" required placeholder="e.g., Riya Sharma" />
+                  </label>
+                  <label class="field">
+                    <span>Phone (optional)</span>
+                    <input name="patient_phone" inputmode="tel" placeholder="e.g., 9876543210" />
+                  </label>
+                </div>
+                <label class="field">
+                  <span>Reason (optional)</span>
+                  <input name="reason" placeholder="e.g., Follow-up / Fever / Consultation" />
+                </label>
+                <div class="row3">
+                  <label class="field">
+                    <span>Date</span>
+                    <input name="date" type="date" required />
+                  </label>
+                  <label class="field">
+                    <span>Time</span>
+                    <input name="time" type="time" required />
+                  </label>
+                  <label class="field">
+                    <span>Duration</span>
+                    <select name="duration">
+                      <option value="10">10 min</option>
+                      <option value="15" selected>15 min</option>
+                      <option value="20">20 min</option>
+                      <option value="30">30 min</option>
+                      <option value="45">45 min</option>
+                      <option value="60">60 min</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="field">
+                  <span>Notes (optional)</span>
+                  <textarea name="notes" rows="3" placeholder="Any receptionist notes…"></textarea>
+                </label>
+                <div class="actions">
+                  <button class="btn" type="button" id="availBtn">Check availability</button>
+                  <button class="btn primary" type="submit">Book appointment</button>
+                </div>
+                <div class="muted mini" id="availMsg"></div>
+              </form>
+            </div>
++
+            <div class="card">
+              <div class="card-title">Upcoming</div>
+              <div id="upcoming" class="table"></div>
+            </div>
+          </div>
+        </section>
++
+        <section id="view-stats" class="view hidden">
+          <div class="view-head">
+            <h1>Stats</h1>
+            <div class="muted">Quick clinic overview for the day.</div>
+          </div>
+          <div id="statsCards" class="stats"></div>
+          <div id="demoTools" class="card" style="margin-top:14px; display:none">
+            <div class="card-title">Demo tools (doctor only)</div>
+            <div class="muted mini">Reset demo data for the currently selected day.</div>
+            <div class="actions" style="margin-top:10px">
+              <button id="resetDemoBtn" class="btn danger" type="button">Reset demo data</button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
++
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title" id="modalTitle">Appointment</div>
+            <div class="muted mini" id="modalSub">—</div>
+          </div>
+          <button class="icon-btn" id="modalClose" aria-label="Close">✕</button>
+        </div>
+        <div id="modalBody" class="modal-body"></div>
+      </div>
+    </div>
++
+    <script src="/static/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ClinicOS — Sign in</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body class="bg">
+    <main class="auth">
+      <div class="auth-card">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div>
+            <div class="brand-title">ClinicOS</div>
+            <div class="brand-sub">Doctor’s Appointment & Scheduling System</div>
+          </div>
+        </div>
++
+        <h1>Sign in</h1>
+        <p class="muted">Role-based access for receptionist and doctor.</p>
++
+        <form id="loginForm" class="form">
+          <label class="field">
+            <span>Username</span>
+            <input name="username" autocomplete="username" required placeholder="reception or doctor" />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input name="password" type="password" autocomplete="current-password" required placeholder="••••••••" />
+          </label>
+          <button class="btn primary" type="submit">Continue</button>
+        </form>
++
+        <div class="demo">
+          <div class="demo-title">Demo accounts</div>
+          <div class="demo-row"><span class="pill">Receptionist</span> <code>reception / reception123</code></div>
+          <div class="demo-row"><span class="pill">Doctor</span> <code>doctor / doctor123</code></div>
+        </div>
++
+        <div id="msg" class="msg" role="status" aria-live="polite"></div>
+      </div>
+      <footer class="foot">
+        Built for TechBlitz26 • “Cyber Psycho”
+      </footer>
+    </main>
+    <script>
+      const form = document.getElementById('loginForm');
+      const msg = document.getElementById('msg');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        msg.textContent = '';
+        const fd = new FormData(form);
+        const payload = { username: fd.get('username')?.toString() ?? '', password: fd.get('password')?.toString() ?? '' };
+        try {
+          const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Sign-in failed');
+          location.href = '/app';
+        } catch (err) {
+          msg.textContent = err?.message || 'Sign-in failed';
+        }
+      });
+    </script>
+  </body>
+</html>
+
